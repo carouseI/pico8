@@ -1,0 +1,487 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2639
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 --pico-8 cartridge --// http://www.pico-8.com\
+--version 38\
+--__lua__\
+--main\
+\
+-- bug1: bird dont die when they fly outside the screen.\
+-- bug2: glitchy death where bird constantly collides with the tube\
+\
+--tube vars\
+--add a table\
+tubes=\{\}\
+tube_num=3\
+tubes_y=-100\
+tubes_x=200\
+offset=96\
+gap=50\
+tube_v=1.2\
+\
+--ground vars\
+ground=\{\}\
+ground_num=4\
+ground_v=1.5\
+\
+--cloud vars\
+clouds=\{\}\
+cloud_num=3\
+cloud_v=0.5\
+\
+--hill vars\
+hills=\{\}\
+hill_num=3\
+hill_v=0.7\
+\
+--bird vars\
+bird_x=10\
+bird_y=10\
+bird_v=0\
+bird_spr=12\
+gravity=0.1\
+jump_force=2\
+pressed=false\
+\
+--main menu title vars\
+title_y=27\
+title_tar=30\
+title_min=20\
+title_max=30\
+\
+--end screen fx vars\
+end_time=0\
+end_y=-12\
+end_tar=22\
+\
+score=0\
+best=0\
+\
+state="menu"\
+\
+--run once at start\
+function _init()\
+	--make all "objects"\
+	--reading the char in each type and buid objects\
+	for i=0,tube_num do\
+		add_tube(tubes_x+i*offset)\
+	end\
+	for i=0,ground_num do\
+		add_ground(i*32)\
+	end\
+	for i=0,cloud_num do\
+		add_cloud(i*128)\
+	end\
+	for i=0,hill_num do\
+		add_hill(i*128)\
+	end\
+end\
+\
+--runs every frame\
+function _update60()\
+	--switch the update based on states\
+	if(state=="menu")then\
+		menu_update()\
+	elseif(state=="game")then\
+		game_update()\
+	elseif(state=="end")then\
+		end_update()\
+	end\
+end\
+\
+--runs every frame\
+function _draw()\
+	--render the objects\
+	if(state=="menu")then\
+		menu_draw()\
+	elseif(state=="game")then\
+		game_draw()\
+	elseif(state=="end")then\
+		end_draw()\
+	end\
+end\
+\
+--resets all gameplay vars\
+function reset_game()\
+	gravity=0.1\
+	\
+	pressed=false\
+\
+	title_y=27\
+	title_tar=30\
+	\
+	--update the best score\
+	if(score>best) best=score\
+\
+    --reset the whole game\
+    \
+	score=0\
+	--reset the pos the bird\
+	bird_x=10\
+	bird_y=10\
+	bird_v=0\
+	bird_spr=12\
+	\
+	end_time=0\
+	end_y=-12\
+	end_tar=22	\
+	t_count=0\
+	\
+	state="game"\
+	\
+end\
+\
+--make cloud obj\
+function add_cloud(_x)\
+	add(clouds,\{\
+		x=_x,\
+		y=80\
+	\})\
+end\
+\
+--make ground obj\
+function add_ground(_x)\
+	add(ground,\{\
+		x=_x,\
+		y=112\
+	\})\
+end\
+\
+--make hill obj\
+function add_hill(_x)\
+	add(hills,\{\
+		x=_x,\
+		y=85\
+	\})\
+end\
+\
+--make tube obj\
+function add_tube(_x)\
+	add(tubes,\{\
+		x=_x,\
+		y=tubes_y+rnd(50),\
+		hit_w=25,\
+		hit_h=32\
+	\})\
+end\
+\
+--draw tube obj\
+--ask \
+function draw_tube(_t)\
+	for i=0,2 do\
+		spr(4,_t.x,_t.y+(i*32),4,4)\
+		_last_y=_t.y+(i*32)\
+	end\
+	\
+ spr(0,_t.x,_last_y+24,4,4)\
+ 	\
+ for i=0,2 do\
+ 	spr(4,_t.x,_last_y+60+gap+(i*32),4,4)\
+ end\
+ \
+ spr(0,_t.x,_last_y+36+gap,4,4)\
+\
+end\
+\
+--check col b/t bird and tube\
+--??? how this work\
+function overlap(_t)\
+	if(bird_x+8>=_t.x and\
+		bird_x<=_t.x+_t.hit_w and\
+		bird_y+8>=0 and\
+		bird_y<=_t.y+(3*_t.hit_h))then\
+		return true\
+	end\
+	if(bird_x+8>=_t.x and\
+		bird_x<=_t.x+_t.hit_w and\
+		bird_y+8>=_t.y+(3*_t.hit_h)+gap and\
+		bird_y<=128)then\
+		return true\
+	end\
+end\
+\
+--gen lerp func for juice\
+function lerp(pos,tar,p)\
+	return(1-p)*tar+p*pos\
+end\
+-->8\
+--game state\
+\
+function game_update()\
+	\
+	if(bird_y <= 0 or bird_y >= 127) then\
+		sfx(1)\
+		state="end"\
+	end\
+\
+\
+	for t in all(tubes) do\
+		-- bug1 fix: bird will die if they fly outside the screen(above or below).\
+		if(overlap(t))then\
+			--play the sound \
+			sfx(1)\
+			state="end"	\
+			--bug2 fix: move all tubes to the right once the bird hits a tube, to avoid premature death\
+			for t in all(tubes) do\
+				t.x += offset\
+				t.x += offset\
+			end\
+		end\
+		\
+		--move the tube to the left every frame\
+		t.x-=tube_v\
+		\
+		--delete tubes on the left and add new ones on the right, same for the ground\
+		if(t.x<-32)then\
+			temp=t\
+			t.x=tubes[tube_num+1].x+offset\
+		--del(tubes,t)\
+		--add(tubes,temp)\
+		end\
+		\
+		if(bird_x==t.x)then\
+			sfx(3)\
+			score+=1\
+		end\
+\
+	 if(state=="end"	) then\
+		 del(tubes,t)\
+	 end\
+\
+		--if(state=="start") then\
+			--add(tubes,temp)\
+		--end\
+	\
+	end\
+	\
+	for g in all(ground) do\
+		g.x-=ground_v\
+		\
+		if(g.x<-32)then\
+			temp=g\
+			g.x=ground[ground_num+1].x+32\
+			del(ground,g)\
+			add(ground,temp)\
+		end\
+	\
+	end\
+		\
+	for c in all(clouds) do\
+		c.x-=cloud_v\
+		\
+		if(c.x<-128)then\
+			temp=c\
+			c.x=clouds[cloud_num].x+128\
+			del(clouds,c)\
+			add(clouds,temp)\
+		end\
+	\
+	end\
+		\
+	for h in all(hills) do\
+		h.x-=hill_v\
+		\
+		if(h.x<-128)then\
+			temp=h\
+			h.x=hills[hill_num].x+128\
+			del(hills,h)\
+			add(hills,temp)\
+		end\
+	\
+	end\
+\
+	bird_move()		\
+	\
+end\
+\
+function game_draw()\
+	\
+	cls(12)\
+		\
+	for c in all(clouds) do\
+		spr(64,c.x,c.y,16,4)\
+	end\
+		\
+	for h in all(hills) do\
+		spr(128,h.x,h.y,16,4)\
+	end\
+		\
+	for t in all(tubes) do\
+		draw_tube(t)\
+	end\
+		\
+	for g in all(ground) do\
+		spr(8,g.x,g.y,4,4)\
+	end\
+		\
+	spr(bird_spr,bird_x,bird_y,2,2)\
+	rectfill(64,10,66,14,7)\
+	print(score,64,10,0)\
+\
+end\
+\
+function bird_move()\
+	\
+	bird_v+=gravity\
+	bird_y+=bird_v\
+	\
+	--make the bird jump\
+	if(btn(4,0) and not pressed)do\
+		sfx(0)\
+		bird_v-=jump_force\
+		--change the sprite\
+		bird_spr=14\
+		pressed=true\
+	end\
+	\
+	--when nothing get pressed\
+	if(not btn(4,0))then\
+		bird_spr=12\
+		pressed=false\
+	end\
+\
+end\
+-->8\
+--menu\
+\
+function menu_update()\
+\
+	for c in all(clouds) do\
+		c.x-=cloud_v\
+		\
+		if(c.x<-128)then\
+			temp=c\
+			c.x=clouds[cloud_num].x+128\
+			del(clouds,c)\
+			add(clouds,temp)\
+		end\
+	\
+	end\
+		\
+	for h in all(hills) do\
+		h.x-=hill_v\
+		\
+		if(h.x<-128)then\
+			temp=h\
+			h.x=hills[hill_num].x+128\
+			del(hills,h)\
+			add(hills,temp)\
+		end\
+	\
+	end\
+	\
+	for g in all(ground) do\
+		\
+		g.x-=ground_v\
+		\
+		if(g.x<-32)then\
+			temp=g\
+			g.x=ground[ground_num+1].x+32\
+			del(ground,g)\
+			add(ground,temp)\
+		end\
+	\
+	end\
+\
+	bounce_title()\
+	\
+	if(btn(5,0)) state="game"\
+	\
+end\
+\
+function menu_draw()\
+\
+	--clear the buffer and screen\
+	cls(12)\
+	\
+	for c in all(clouds) do\
+		spr(64,c.x,c.y,16,4)\
+	end\
+		\
+	for h in all(hills) do\
+		spr(128,h.x,h.y,16,4)\
+	end\
+	\
+	for g in all(ground) do\
+		spr(8,g.x,g.y,4,4)\
+	end\
+	\
+	spr(192,28,title_y,9,2)\
+	\
+	print("press x to start",32,50,7)\
+	print("z to flap",47,60,0)\
+\
+end\
+\
+--animate the title at start screen\
+function bounce_title()\
+	\
+	title_y=lerp(title_y,title_tar,0.9)\
+	\
+	if(title_y>=title_max-0.5)then\
+		title_tar=title_min\
+	end\
+	\
+	if(title_y<=title_min+0.5)then\
+		title_tar=title_max\
+	end\
+\
+end\
+-->8\
+--end\
+\
+function end_update()\
+	\
+    --get the bird bounced back to the left when it get fkd\
+	bounce_back()\
+	\
+	end_time+=1\
+	\
+--end_sfx()\
+\
+	if(btn(5,0)) reset_game()\
+	\
+end\
+\
+function end_draw()\
+	\
+	game_draw()\
+\
+	rectfill(16,32,112,96,9)\
+	\
+	--render the game over sprite\
+	if(end_y<end_tar) end_y+=1\
+	\
+	spr(224,29,end_y,9,2)\
+	\
+\
+	--print the score and high score\
+	if(end_time>35)then\
+		print("score: "..score.."",45,50,0)\
+	end\
+	\
+	if(end_time>50)then\
+			print("best: "..best.."",47,60,0)\
+	end\
+	\
+	--print the restart\
+	if(end_time>65)then\
+			print("x to restart",38,80,0)\
+	end\
+\
+end\
+\
+function bounce_back()\
+	\
+	if(bird_y<128)then\
+		gravity=1.5\
+		bird_v+=gravity\
+		bird_x-=2+rnd(4)\
+		bird_y+=bird_v\
+	end\
+\
+end}
